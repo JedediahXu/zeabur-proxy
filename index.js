@@ -2,7 +2,7 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 
-const TARGET = process.env.TARGET_URL || 'https://lowcode-ai-generator.jedediahxu99.workers.dev';
+const TARGET = process.env.TARGET_URL || 'https://ai-customer-service-agent.jedediahxu99.workers.dev/chat';
 
 const server = http.createServer((req, res) => {
   // Handle CORS preflight
