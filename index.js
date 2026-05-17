@@ -4,6 +4,28 @@ const { URL } = require('url');
 
 const TARGET = process.env.TARGET_URL || 'https://service-agent-hub.jedediahxu99.workers.dev';
 const STRIP_PREFIX = process.env.STRIP_PREFIX || '/api';
+const DEFAULT_ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || '*';
+
+const getCorsHeaders = (req) => {
+  const requestHeaders = req.headers['access-control-request-headers'];
+  return {
+    'Access-Control-Allow-Origin': req.headers.origin || DEFAULT_ALLOW_ORIGIN,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': requestHeaders || 'Content-Type, Authorization, X-Token',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+};
+
+const withoutCorsHeaders = (headers) => {
+  const nextHeaders = { ...headers };
+  for (const name of Object.keys(nextHeaders)) {
+    if (name.toLowerCase().startsWith('access-control-') || name.toLowerCase() === 'vary') {
+      delete nextHeaders[name];
+    }
+  }
+  return nextHeaders;
+};
 
 const stripPrefix = (url) => {
   if (!STRIP_PREFIX || STRIP_PREFIX === '/') return url;
@@ -17,12 +39,7 @@ const stripPrefix = (url) => {
 const server = http.createServer((req, res) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': '*',
-      'Access-Control-Max-Age': '86400',
-    });
+    res.writeHead(204, getCorsHeaders(req));
     res.end();
     return;
   }
@@ -49,10 +66,8 @@ const server = http.createServer((req, res) => {
 
   const proxy = https.request(options, (proxyRes) => {
     const responseHeaders = {
-      ...proxyRes.headers,
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': '*',
+      ...withoutCorsHeaders(proxyRes.headers),
+      ...getCorsHeaders(req),
     };
 
     // Support SSE (Server-Sent Events) streaming
@@ -68,7 +83,7 @@ const server = http.createServer((req, res) => {
   proxy.on('error', (err) => {
     console.error('Proxy error:', err.message);
     if (!res.headersSent) {
-      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.writeHead(502, { 'Content-Type': 'application/json', ...getCorsHeaders(req) });
     }
     res.end(JSON.stringify({ error: 'Proxy error', message: err.message }));
   });
