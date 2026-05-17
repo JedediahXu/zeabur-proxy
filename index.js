@@ -2,7 +2,17 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 
-const TARGET = process.env.TARGET_URL || 'https://ai-customer-service-agent.jedediahxu99.workers.dev';
+const TARGET = process.env.TARGET_URL || 'https://service-agent-hub.jedediahxu99.workers.dev';
+const STRIP_PREFIX = process.env.STRIP_PREFIX || '/api';
+
+const stripPrefix = (url) => {
+  if (!STRIP_PREFIX || STRIP_PREFIX === '/') return url;
+  if (url === STRIP_PREFIX) return '/';
+  if (url.startsWith(`${STRIP_PREFIX}/`)) {
+    return url.slice(STRIP_PREFIX.length) || '/';
+  }
+  return url;
+};
 
 const server = http.createServer((req, res) => {
   // Handle CORS preflight
@@ -17,7 +27,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const targetUrl = new URL(req.url === '/' ? TARGET : TARGET + req.url);
+  const upstreamPath = stripPrefix(req.url || '/');
+  const targetUrl = new URL(upstreamPath === '/' ? TARGET : TARGET + upstreamPath);
 
   const options = {
     hostname: targetUrl.hostname,
@@ -26,7 +37,9 @@ const server = http.createServer((req, res) => {
     method: req.method,
     headers: {
       ...req.headers,
-      host: targetUrl.hostname,
+      host: targetUrl.host,
+      'x-forwarded-host': req.headers.host,
+      'x-forwarded-proto': req.headers['x-forwarded-proto'] || 'https',
     },
   };
 
@@ -67,4 +80,5 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`Proxy server running on port ${PORT}`);
   console.log(`Forwarding requests to: ${TARGET}`);
+  console.log(`Stripping prefix: ${STRIP_PREFIX || '(disabled)'}`);
 });
